@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Stream Audio</title>
+        <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    </head>
+    <body>
+        <button id="connectButton">Connect</button>
+        <button id="disconnectButton">Disconnect</button>
+        <button id="startButton">Start Streaming</button>
+        <button id="stopButton">Stop Streaming</button>
+        <button id="transcribeButton">transcribe</button>
+        <script>
+  let mediaRecorder;
+  let socket;
+
+  document.getElementById('connectButton').onclick = () => {
+    socket = io('http://localhost:3000');
+    socket.on('connect', () => {
+      console.log('Socket.io connection established');
+    });
+    socket.on('textData', (text) => {
+      console.log({text});
+    });
+  };
+
+  document.getElementById('disconnectButton').onclick = () => {
+    if (socket) {
+      socket.disconnect();
+      console.log('Socket.io disconnected');
+    }
+  };
+
+  document.getElementById('startButton').onclick = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = sendData;
+      mediaRecorder.start(100); // You can adjust the chunk size
+    } catch (err) {
+      console.error('Error accessing the microphone', err);
+    }
+  };
+
+  document.getElementById('stopButton').onclick = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      console.log('Stopped recording');
+      socket.emit('audioDataStop')
+    }
+  };
+
+  document.getElementById('transcribeButton').onclick = () => {
+      console.log('Trascription started');
+      socket.emit('transcribe')
+  };
+
+  function sendData(e) {
+    if (socket && socket.connected) {
+      socket.emit('audioData', e.data);
+    }
+  }
+        </script>
+    </body>
+</html>
