@@ -6,20 +6,23 @@ import {
 } from '@nestjs/websockets'
 import { Server } from 'socket.io'
 import { SpeechToTextService } from './speech-to-text.service'
-import { Duplex, Writable } from 'stream'
+import { Duplex, Writable, PassThrough } from 'stream'
 import * as fs from 'fs'
 import * as path from 'path'
 import { EditorService } from './editor.service'
+import { google } from '@google-cloud/speech/build/protos/protos'
+import { spawn } from 'node:child_process'
 
 
 @WebSocketGateway({ cors: true })
 export class AudioGateway implements OnGatewayConnection {
   private text: string = ''
-  private recognizeStream: Duplex
   private audioFileStream: fs.WriteStream
-  private audioFileStreamData: Buffer[]
-  private audioInputStreamTransform: Writable
-  private myBlob: Blob
+  private initialPassThrough: PassThrough
+  private audioToConvertStream: Duplex
+  // private converterChain: Promise<void>[] = []
+  private convertedAudioStream: PassThrough
+  private audioInputStreamTransform: Duplex
   private testFilename: string
 
   @WebSocketServer() server: Server
@@ -30,74 +33,37 @@ export class AudioGateway implements OnGatewayConnection {
   ) {
     this.testFilename = path.join(
       process.cwd(),
-      `audio_stream_test.webm`
+      `audio_stream_test_2.wav`
     )
+
+    this.audioFileStream = fs.createWriteStream(this.testFilename)
+    this.initialPassThrough = new PassThrough()
+    this.convertedAudioStream = new PassThrough()
+    const convertedAudioStream = this.convertedAudioStream
+    this.audioToConvertStream = new Duplex({
+      write(chunk, encoding, callback) {
+        editorService.convertFileFfmpeg(chunk, convertedAudioStream)
+      }
+    })
+    this.initialPassThrough.pipe(this.audioToConvertStream, { end: false })
+    this.convertedAudioStream.on('data', (data) => { console.log("convertedAudioStream", data) })
+    this.convertedAudioStream.pipe(this.audioFileStream, { end: false })
+
   }
 
   handleConnection(client: any, ...args: any[]) {
     console.log('Client connected:', client.id)
-    // this.recognizeStream = this.speechToTextService.createStream()
-    // this.speechToTextService.startStream(this.streamDataCallback.bind(this), "x")
   }
+
 
   @SubscribeMessage('audioData')
   handleMessage(client: any, payload: any): void {
-    // console.log('audioData', payload)
-    // if (this.audioInputStreamTransform.writable) {
-    // this.audioInputStreamTransform.write(
-    //   Buffer.from(payload)
-    // )
-    this.recognizeStream.write(Buffer.from(payload))
-    // }
+    if (this.initialPassThrough && this.initialPassThrough.writable) {
+      console.log('audioData', payload)
+      this.initialPassThrough.write(Buffer.from(payload))
+    } else {
+      console.log("audioData not writable")
+    }
   }
-
-  @SubscribeMessage('audioDataStop')
-  stopData(): void {
-    // this.audioInputStreamTransform.end()
-  }
-
-  @SubscribeMessage('clearText')
-  clearText() {
-    this.text = ''
-  }
-
-  @SubscribeMessage('transcribe')
-  transcribe() {
-    console.log("ee")
-    const googleStream = this.speechToTextService.createStream()
-    const fileStream = fs.createReadStream(this.testFilename).on(`end`, () => { console.log("end") })
-    const converterStream = new Duplex({
-      read(size) {
-        console.log("Duplex read")
-      },
-      write(size) {
-        console.log("Duplex read")
-      }
-    })
-      .on(`end`, () => { console.log("Duplex end") })
-      .on(`data`, (data) => { console.log("Duplex data", data) })
-    // const convertedFile = fs.createWriteStream(path.join(
-    //   process.cwd(),
-    //   `converted.wav`
-    // ))
-    this.editorService.convertFileFfmpeg(fileStream, converterStream)
-    // converterStream.pipe(convertedFile)
-    // fileStream.pipe(googleStream)
-  }
-
-  @SubscribeMessage('convert')
-  convert() {
-    console.log("ee")
-    const stream = this.speechToTextService.createStream()
-    const fileStream = fs.createReadStream(this.testFilename).on(`end`, () => { console.log("end") })
-    fileStream.pipe(stream)
-  }
-
-  private streamDataCallback(data: any) {
-    console.log({ data })
-    this.text += `${data}`
-    this.server.emit('textData', this.text)
-  }
-
 
 }

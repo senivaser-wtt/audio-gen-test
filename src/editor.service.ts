@@ -4,16 +4,17 @@ import { Readable, Writable } from "stream"
 
 @Injectable()
 export class EditorService {
+
   constructor() {
+
   }
 
-  async convertFileFfmpeg(inputFile: Readable, outputFile: Writable): Promise<void> {
+  async convertFileFfmpeg(buffer: Buffer, outputStream: Writable): Promise<void> {
+
     return new Promise((resolve, reject) => {
-      const ffmpeg = FfmpegCommand("audio_stream_test.webm")
+      const ffmpeg = FfmpegCommand(Readable.from(buffer))
       ffmpeg
-        // .input()
-        .output("converted.vaw")
-        .addOption('-c:a pcm_f32le')
+        .format('wav')
         .on('start', (commandLine) => {
           console.log('Spawned Ffmpeg with command: ' + commandLine)
         })
@@ -28,8 +29,9 @@ export class EditorService {
           console.log('Transcoding succeeded !')
           resolve()
         })
-        .run()
+        .pipe(outputStream, { end: false })
     })
+
   }
 
 }
