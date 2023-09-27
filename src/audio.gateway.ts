@@ -42,7 +42,7 @@ export class AudioGateway implements OnGatewayConnection {
     const convertedAudioStream = this.convertedAudioStream
     this.audioToConvertStream = new Duplex({
       write(chunk, encoding, callback) {
-        editorService.convertFileFfmpeg(chunk, convertedAudioStream)
+        editorService.convertFileFfmpeg(chunk).pipe(convertedAudioStream, { end: false })
       }
     })
     this.initialPassThrough.pipe(this.audioToConvertStream, { end: false })
