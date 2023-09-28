@@ -1,16 +1,11 @@
 import { Injectable } from "@nestjs/common"
 import * as FfmpegCommand from 'fluent-ffmpeg'
-import { Readable, Writable } from "stream"
+import { Readable } from "stream"
 
 @Injectable()
 export class EditorService {
-
-  constructor() {
-
-  }
-
-  convertFileFfmpeg(buffer: Buffer): FfmpegCommand.FfmpegCommand {
-    const ffmpeg = FfmpegCommand(Readable.from(buffer))
+  convertFileFfmpeg(readable: Readable): FfmpegCommand.FfmpegCommand {
+    const ffmpeg = FfmpegCommand(readable)
     return ffmpeg
       .format('wav')
       .on('start', (commandLine) => {
