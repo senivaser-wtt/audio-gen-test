@@ -6,7 +6,7 @@ import {
 } from '@nestjs/websockets'
 import { Server } from 'socket.io'
 import { SpeechToTextService } from './speech-to-text.service'
-import { Duplex, Writable, PassThrough } from 'stream'
+import { Duplex, Writable, PassThrough, Readable } from 'stream'
 import * as fs from 'fs'
 import * as path from 'path'
 import { EditorService } from './editor.service'
@@ -20,10 +20,12 @@ export class AudioGateway implements OnGatewayConnection {
   private audioFileStream: fs.WriteStream
   private initialPassThrough: PassThrough
   private audioToConvertStream: Duplex
-  // private converterChain: Promise<void>[] = []
+  private buffers: Buffer[] = []
   private convertedAudioStream: PassThrough
   private audioInputStreamTransform: Duplex
   private testFilename: string
+  private counter: number = 0
+  private googleStream: Duplex
 
   @WebSocketServer() server: Server
 
@@ -42,28 +44,47 @@ export class AudioGateway implements OnGatewayConnection {
     const convertedAudioStream = this.convertedAudioStream
     this.audioToConvertStream = new Duplex({
       write(chunk, encoding, callback) {
-        editorService.convertFileFfmpeg(chunk).pipe(convertedAudioStream, { end: false })
+        console.log("audioToConvertStream", chunk)
+        // editorService.addToQueue(chunk, convertedAudioStream)
+        callback()
       }
     })
-    this.initialPassThrough.pipe(this.audioToConvertStream, { end: false })
-    this.convertedAudioStream.on('data', (data) => { console.log("convertedAudioStream", data) })
-    this.convertedAudioStream.pipe(this.audioFileStream, { end: false })
+    this.initialPassThrough.pipe(this.convertedAudioStream, { end: false })
+    this.convertedAudioStream.on('data', async (data) => {
+      console.log("convertedAudioStream", this.counter, data.length)
+      this.buffers.push(data)
+    })
+    // this.convertedAudioStream.pipe(this.audioFileStream, { end: false })
+    // this.convertedAudioStream.pipe(this.googleStream, { end: false })
 
   }
 
   handleConnection(client: any, ...args: any[]) {
     console.log('Client connected:', client.id)
+    this.googleStream = this.speechToTextService.createStream()
   }
 
 
   @SubscribeMessage('audioData')
   handleMessage(client: any, payload: any): void {
-    if (this.initialPassThrough && this.initialPassThrough.writable) {
+    if (this.googleStream && this.googleStream.writable) {
       console.log('audioData', payload)
-      this.initialPassThrough.write(Buffer.from(payload))
+      this.googleStream.write(payload)
     } else {
       console.log("audioData not writable")
     }
   }
 
+  @SubscribeMessage('audioDataStop')
+  stopAudio(client: any, payload: any): void {
+    for (let i in this.buffers) {
+      const buffer = this.buffers[i]
+      fs.writeFileSync(
+        path.join(process.cwd(), `/media/audio_stream_test_${i}.webm`),
+        buffer
+      )
+      console.log(`audio_stream_test_${i}.wav`)
+      console.log("buffer", buffer, buffer.length, i)
+    }
+  }
 }

@@ -35,10 +35,19 @@
 
   document.getElementById('startButton').onclick = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: 
+          {
+            deviceId: "default",
+            sampleRate: sampleRate,
+            sampleSize: 16,
+            channelCount: 1,
+          },
+          video: false, 
+      });
       mediaRecorder = new MediaRecorder(stream);
       mediaRecorder.ondataavailable = sendData;
-      mediaRecorder.start(100); // You can adjust the chunk size
+      mediaRecorder.start(500); // You can adjust the chunk size
       // socket.emit('startStream');
     } catch (err) {
       console.error('Error accessing the microphone', err);

@@ -1,10 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common'
 import { v1p1beta1, v1 } from '@google-cloud/speech'
 // import { SpeechClient } from '@google-cloud/speech/build/src/v1p1beta1'
-import { Duplex, Writable } from 'stream'
-import * as fs from 'fs'
-import * as FfmpegCommand from 'fluent-ffmpeg'
-import * as path from 'path'
 
 @Injectable()
 export class SpeechToTextService {
@@ -13,25 +9,25 @@ export class SpeechToTextService {
 
   public recognizeStream = null
 
-  private restartCounter = 0
-  private audioInput = []
-  private lastAudioInput = []
-  private resultEndTime = 0
-  private isFinalEndTime = 0
-  private finalRequestEndTime = 0
-  private newStream = true
-  private bridgingOffset = 0
-  private lastTranscriptWasFinal = false
-
   constructor() {
     const encoding = 'LINEAR16'
     const sampleRateHertz = 48000
     const languageCode = 'en-US'
 
     const config = {
-      encoding: encoding,
-      sampleRateHertz: sampleRateHertz,
-      languageCode: languageCode,
+      encoding,
+      sampleRateHertz,
+      languageCode,
+      //alternativeLanguageCodes: alternativeLanguageCodes,
+      enableWordTimeOffsets: true,
+      enableAutomaticPunctuation: true,
+      enableWordConfidence: true,
+      enableSpeakerDiarization: true,
+      //diarizationSpeakerCount: 2,
+      //model: "video",
+      model: "command_and_search",
+      //model: "default",
+      useEnhanced: true,
     }
 
     this.request = {
